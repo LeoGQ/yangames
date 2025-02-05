@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>精美坦克射击游戏</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        #updateQuestionButton {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 50px;
+        }
+        #scoreBoard, #questionBoard {
+            color: black;
+            font-size: 50px;
+            margin: 10px;
+            font-weight: bold;
+        }
+        #infoBoard {
+            display: flex;
+            justify-content: space-between;
+            width: 80%;
+        }
+        #gameCanvas {
+            border: 2px solid black;
+            background-color: #333;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <!-- <div id="scoreBoard">得分: <span id="score">0</span></div>
+    <div id="questionBoard">问题: <span id="question">N/A</span></div> -->
+    <div id="infoBoard">
+        <div id="scoreBoard">得分: <span id="score">0</span></div>
+        <div id="questionBoard">问题: <span id="question">N/A</span></div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <button id="updateQuestionButton">更新问题</button>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const questionElement = document.getElementById('question');
+        const updateQuestionButton = document.getElementById('updateQuestionButton');
+
+        const shootSound = new Audio('shoot.mp3');
+        const hitSound = new Audio('hit.mp3');
+
+        let score = 0;
+        let tank = {
+            x: 0, // 初始位置将在 resizeCanvas 中设置
+            y: 0, // 初始位置将在 resizeCanvas 中设置
+            width: 60,
+            height: 30,
+            barrelLength: 40,
+            barrelAngle: 0
+        };
+
+        let numbers = [];
+        let bullets = [];
+        let currentQuestion = null;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight - 60; // 调整画布高度以留出按钮空间
+            tank.x = canvas.width / 2 - tank.width / 2; // 调整坦克位置到画布的中间
+            tank.y = canvas.height - tank.height - 50; // 调整坦克位置到画布的下方并上移一点
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function generateQuestion() {
+            const num1 = Math.floor(Math.random() * 4) + 1; // 确保 num1 不为0
+            const num2 = Math.floor(Math.random() * 4) + 1; // 确保 num2 不为0
+            const isAddition = Math.random() > 0.5;
+            let question, answer;
+
+            if (isAddition) {
+                question = `${num1} + ${num2}`;
+                answer = num1 + num2;
+            } else {
+                // 确保减法结果不为0和负数
+                const num1 = Math.floor(Math.random() * 9) + 1;
+                const num2 = Math.floor(Math.random() * 9) + 1;
+                if (num1 > num2) {
+                    question = `${num1} - ${num2}`;
+                    answer = num1 - num2;
+                } else {
+                    question = `${num2+1} - ${num1}`;
+                    answer = num2+1 - num1;
+                }
+            }
+
+            currentQuestion = { question, answer };
+            questionElement.textContent = question;
+        }
+
+        function createNumber() {
+            numbers.push({
+                x: Math.random() * (canvas.width - 30),
+                y: 0,
+                value: Math.floor(Math.random() * 9) + 1,
+                speed: Math.random() * 1 + 0.2
+            });
+        }
+
+        canvas.addEventListener('mousemove', function(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // 计算炮管角度
+            const dx = mouseX - (tank.x + tank.width/2);
+            const dy = mouseY - (tank.y - tank.barrelLength);
+            tank.barrelAngle = Math.atan2(dy, dx);
+        });
+
+        canvas.addEventListener('click', function(e) {
+            // 创建子弹
+            const barrelEnd = {
+                x: tank.x + tank.width/2 + Math.cos(tank.barrelAngle) * tank.barrelLength,
+                y: tank.y - tank.barrelLength + Math.sin(tank.barrelAngle) * tank.barrelLength
+            };
+            
+            bullets.push({
+                x: barrelEnd.x,
+                y: barrelEnd.y,
+                angle: tank.barrelAngle,
+                speed: 8
+            });
+
+            // 播放射击声音
+            shootSound.currentTime = 0;
+            shootSound.play();
+        });
+
+        function update() {
+            // 更新子弹位置
+            bullets = bullets.filter(bullet => {
+                bullet.x += Math.cos(bullet.angle) * bullet.speed;
+                bullet.y += Math.sin(bullet.angle) * bullet.speed;
+
+                // 检测子弹与数字的碰撞
+                let hit = false;
+                numbers = numbers.filter(number => {
+                    const numCenterX = number.x + 25;
+                    const numCenterY = number.y + 25;
+                    const distance = Math.sqrt(
+                        Math.pow(bullet.x - numCenterX, 2) + 
+                        Math.pow(bullet.y - numCenterY, 2)
+                    );
+                    
+                    if (distance < 25) {
+                        if (number.value === currentQuestion.answer) {
+                            score += 1;
+                            scoreElement.textContent = score;
+                            generateQuestion();
+                        }
+                        hitSound.play();
+                        hit = true;
+                        return false;
+                    }
+                    return true;
+                });
+
+                return !hit && bullet.x > 0 && bullet.x < canvas.width &&
+                       bullet.y > 0 && bullet.y < canvas.height;
+            });
+
+            // 更新数字位置
+            numbers = numbers.filter(number => {
+                number.y += number.speed;
+                return number.y < canvas.height;
+            });
+
+            if (Math.random() < 0.02) {
+                createNumber();
+            }
+        }
+
+        function drawTank() {
+            // 坦克主体
+            ctx.save();
+            ctx.translate(tank.x + tank.width/2, tank.y);
+            
+            // 履带
+            ctx.fillStyle = '#555';
+            ctx.fillRect(-tank.width/2 - 5, -10, tank.width + 10, 20);
+            
+            // 车身
+            ctx.fillStyle = '#8B0000';
+            ctx.beginPath();
+            ctx.roundRect(-tank.width/2, -15, tank.width, 20, 5);
+            ctx.fill();
+            
+            // 炮塔
+            ctx.fillStyle = '#A9A9A9';
+            ctx.beginPath();
+            ctx.arc(0, -10, 15, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 炮管
+            ctx.strokeStyle = '#A9A9A9';
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(0, -10);
+            ctx.lineTo(
+                Math.cos(tank.barrelAngle) * tank.barrelLength,
+                -10 + Math.sin(tank.barrelAngle) * tank.barrelLength
+            );
+            ctx.stroke();
+            
+            // 细节装饰
+            ctx.fillStyle = '#666';
+            ctx.beginPath();
+            ctx.arc(-15, 5, 3, 0, Math.PI * 2); // 左轮
+            ctx.arc(15, 5, 3, 0, Math.PI * 2);  // 右轮
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制坦克
+            drawTank();
+
+            // 绘制子弹
+            bullets.forEach(bullet => {
+                ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(bullet.x, bullet.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 绘制数字
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 50px Arial'; // 放大加粗字体
+            numbers.forEach(number => {
+                ctx.fillText(number.value, number.x + 10, number.y + 20);
+            });
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        updateQuestionButton.addEventListener('click', generateQuestion);
+
+        generateQuestion();
+        gameLoop();
+    </script>
+</body>
+</html>
