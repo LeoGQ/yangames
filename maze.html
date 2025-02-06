@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>迷宫游戏</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 0;
+            background-color: #333;
+        }
+        #controls {
+            margin: 10px;
+        }
+        #controls button {
+            font-size: 20px; /* 放大按钮字体 */
+            padding: 10px 20px; /* 增加按钮内边距 */
+            margin: 5px; /* 增加按钮间距 */
+        }
+        #maze {
+            display: grid;
+            gap: 2px;
+        }
+        .cell {
+            width: 40px; /* 初始格子大小 */
+            height: 40px; /* 初始格子大小 */
+            background-color: white;
+            border: 1px solid black;
+        }
+        .wall {
+            background-color: black;
+        }
+        .path {
+            background-color: white;
+        }
+        .start {
+            background-color: green;
+        }
+        .end {
+            background-color: red;
+        }
+        .player {
+            background-color: blue;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button class="levelButton" data-width="15" data-height="10">Level 1</button>
+        <button class="levelButton" data-width="25" data-height="20">Level 2</button>
+        <button class="levelButton" data-width="35" data-height="30">Level 3</button>
+        <button class="levelButton" data-width="45" data-height="40">Level 4</button>
+        <button class="levelButton" data-width="55" data-height="50">Level 5</button>
+        <button id="zoomIn">zoomIn</button>
+        <button id="zoomOut">zoomOut</button>
+    </div>
+    <div id="maze"></div>
+
+    <script>
+        const mazeElement = document.getElementById('maze');
+        const levelButtons = document.querySelectorAll('.levelButton');
+        const zoomInButton = document.getElementById('zoomIn');
+        const zoomOutButton = document.getElementById('zoomOut');
+        let mazeWidth = 15;
+        let mazeHeight = 10;
+        let cellSize = 40; // 初始格子大小
+        let maze = [];
+        let playerPosition = { x: 0, y: 0 };
+
+        function createMaze() {
+            mazeElement.innerHTML = '';
+            mazeElement.style.gridTemplateColumns = `repeat(${mazeWidth}, ${cellSize}px)`; // 调整列宽度
+            mazeElement.style.gridTemplateRows = `repeat(${mazeHeight}, ${cellSize}px)`; // 调整行高度
+            maze = [];
+            for (let y = 0; y < mazeHeight; y++) {
+                const row = [];
+                for (let x = 0; x < mazeWidth; x++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.style.width = `${cellSize}px`;
+                    cell.style.height = `${cellSize}px`;
+                    cell.dataset.x = x;
+                    cell.dataset.y = y;
+                    row.push(cell);
+                    mazeElement.appendChild(cell);
+                }
+                maze.push(row);
+            }
+        }
+
+        function generateMaze(x, y) {
+            const directions = [
+                { dx: 1, dy: 0 },
+                { dx: -1, dy: 0 },
+                { dx: 0, dy: 1 },
+                { dx: 0, dy: -1 }
+            ];
+            directions.sort(() => Math.random() - 0.5);
+
+            for (const { dx, dy } of directions) {
+                const nx = x + dx * 2;
+                const ny = y + dy * 2;
+                if (nx >= 0 && nx < mazeWidth && ny >= 0 && ny < mazeHeight && !maze[ny][nx].classList.contains('path')) {
+                    maze[ny][nx].classList.add('path');
+                    maze[y + dy][x + dx].classList.add('path');
+                    generateMaze(nx, ny);
+                }
+            }
+        }
+
+        function initializeMaze() {
+            for (let y = 0; y < mazeHeight; y++) {
+                for (let x = 0; x < mazeWidth; x++) {
+                    maze[y][x].classList.add('wall');
+                }
+            }
+            maze[0][0].classList.add('path');
+            generateMaze(0, 0);
+            maze[0][0].classList.add('start');
+            maze[mazeHeight - 1][mazeWidth - 1].classList.add('path'); // 确保终点是路径
+            maze[mazeHeight - 1][mazeWidth - 1].classList.add('end');
+            maze[0][0].classList.add('player');
+            playerPosition = { x: 0, y: 0 };
+        }
+
+        function movePlayer(dx, dy) {
+            const newX = playerPosition.x + dx;
+            const newY = playerPosition.y + dy;
+            if (newX >= 0 && newX < mazeWidth && newY >= 0 && newY < mazeHeight && maze[newY][newX].classList.contains('path')) {
+                maze[playerPosition.y][playerPosition.x].classList.remove('player');
+                playerPosition.x = newX;
+                playerPosition.y = newY;
+                maze[playerPosition.y][playerPosition.x].classList.add('player');
+                if (playerPosition.x === mazeWidth - 1 && playerPosition.y === mazeHeight - 1) {
+                    alert('你赢了！');
+                }
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case 'ArrowUp':
+                    movePlayer(0, -1);
+                    break;
+                case 'ArrowDown':
+                    movePlayer(0, 1);
+                    break;
+                case 'ArrowLeft':
+                    movePlayer(-1, 0);
+                    break;
+                case 'ArrowRight':
+                    movePlayer(1, 0);
+                    break;
+            }
+        });
+
+        mazeElement.addEventListener('click', (e) => {
+            if (e.target.classList.contains('cell')) {
+                const targetX = parseInt(e.target.dataset.x);
+                const targetY = parseInt(e.target.dataset.y);
+                const dx = targetX - playerPosition.x;
+                const dy = targetY - playerPosition.y;
+
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    movePlayer(dx > 0 ? 1 : -1, 0);
+                } else {
+                    movePlayer(0, dy > 0 ? 1 : -1);
+                }
+            }
+        });
+
+        levelButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                mazeWidth = parseInt(button.getAttribute('data-width'));
+                mazeHeight = parseInt(button.getAttribute('data-height'));
+                createMaze();
+                initializeMaze();
+            });
+        });
+
+        zoomInButton.addEventListener('click', () => {
+            cellSize += 10;
+            createMaze();
+            initializeMaze();
+        });
+
+        zoomOutButton.addEventListener('click', () => {
+            cellSize = Math.max(10, cellSize - 10);
+            createMaze();
+            initializeMaze();
+        });
+
+        function requestFullScreen() {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            } else if (document.documentElement.mozRequestFullScreen) { // Firefox
+                document.documentElement.mozRequestFullScreen();
+            } else if (document.documentElement.webkitRequestFullscreen) { // Chrome, Safari and Opera
+                document.documentElement.webkitRequestFullscreen();
+            } else if (document.documentElement.msRequestFullscreen) { // IE/Edge
+                document.documentElement.msRequestFullscreen();
+            }
+        }
+
+        window.addEventListener('load', () => {
+            requestFullScreen();
+            createMaze();
+            initializeMaze();
+        });
+    </script>
+</body>
+</html>
