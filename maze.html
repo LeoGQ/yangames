@@ -42,27 +42,23 @@
             background-color: red;
         }
         .player {
-            background-color: blue;
+            background-image: url('face.png');
+            background-size: cover;
+        }
+        .eat {
+            background-image: url('eat.png');
+            background-size: cover;
         }
     </style>
 </head>
 <body>
     <div id="controls">
-        <button class="levelButton" data-width="15" data-height="10">Level 1</button>
-        <button class="levelButton" data-width="20" data-height="15">Level 2</button>
-        <button class="levelButton" data-width="25" data-height="20">Level 3</button>
-        <button class="levelButton" data-width="30" data-height="25">Level 4</button>
-        <button class="levelButton" data-width="35" data-height="30">Level 5</button>
-        <button class="levelButton" data-width="40" data-height="35">Level 6</button>
-        <button class="levelButton" data-width="45" data-height="40">Level 7</button>
-        <button class="levelButton" data-width="50" data-height="45">Level 8</button>
-        <button class="levelButton" data-width="55" data-height="50">Level 9</button>
-        <button class="levelButton" data-width="60" data-height="55">Level 10</button>
+        <button id="levelUp">level+</button>
+        <button id="levelDown">level-</button>
         <button id="zoomIn">zoomIn</button>
         <button id="zoomOut">zoomOut</button>
     </div>
     <div id="maze"></div>
-
 
     <!-- Floating buttons for player movement in a 3x3 grid -->
     <div id="controlsGrid" style="position: fixed; left: 10px; bottom: 10px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 5px;">
@@ -79,19 +75,21 @@
 
     <script>
         const mazeElement = document.getElementById('maze');
-        const levelButtons = document.querySelectorAll('.levelButton');
+        const levelUpButton = document.getElementById('levelUp');
+        const levelDownButton = document.getElementById('levelDown');
         const zoomInButton = document.getElementById('zoomIn');
         const zoomOutButton = document.getElementById('zoomOut');
         const moveUpButton = document.getElementById('moveUp');
         const moveDownButton = document.getElementById('moveDown');
         const moveLeftButton = document.getElementById('moveLeft');
         const moveRightButton = document.getElementById('moveRight');
-        let mazeWidth = 15;
-        let mazeHeight = 10;
+        let mazeWidth = 11;
+        let mazeHeight = 11;
         let cellSize = 40; // 初始格子大小
         let maze = [];
         let playerPosition = { x: 0, y: 0 };
         let moveInterval;
+        let eatPositions = [];
 
         function createMaze() {
             mazeElement.innerHTML = '';
@@ -145,20 +143,76 @@
             maze[0][0].classList.add('start');
             maze[mazeHeight - 1][mazeWidth - 1].classList.add('path'); // 确保终点是路径
             maze[mazeHeight - 1][mazeWidth - 1].classList.add('end');
-            maze[0][0].classList.add('player');
+            maze[0][0].style.backgroundImage = 'url("face.png")';
+            maze[0][0].style.backgroundSize = 'cover';
             playerPosition = { x: 0, y: 0 };
+            placeEats();
+            moveEats();
+        }
+
+        function placeEats() {
+            eatPositions = [];
+            const eatCount = Math.floor(mazeWidth / 10);
+            for (let i = 0; i < eatCount; i++) {
+                let x, y;
+                do {
+                    x = Math.floor(Math.random() * mazeWidth);
+                    y = Math.floor(Math.random() * mazeHeight);
+                } while (!maze[y][x].classList.contains('path') || maze[y][x].classList.contains('eat'));
+                maze[y][x].classList.add('eat');
+                eatPositions.push({ x, y });
+            }
+        }
+
+        function moveEats() {
+            setInterval(() => {
+                eatPositions.forEach(eat => {
+                    const directions = [
+                        { dx: 1, dy: 0 },
+                        { dx: -1, dy: 0 },
+                        { dx: 0, dy: 1 },
+                        { dx: 0, dy: -1 }
+                    ];
+                    directions.sort(() => Math.random() - 0.5);
+                    for (const { dx, dy } of directions) {
+                        const newX = eat.x + dx;
+                        const newY = eat.y + dy;
+                        if (newX >= 0 && newX < mazeWidth && newY >= 0 && newY < mazeHeight && maze[newY][newX].classList.contains('path') && !maze[newY][newX].classList.contains('eat')) {
+                            maze[eat.y][eat.x].classList.remove('eat');
+                            maze[newY][newX].classList.add('eat');
+                            eat.x = newX;
+                            eat.y = newY;
+                            break;
+                        }
+                    }
+                });
+            }, 1000);
         }
 
         function movePlayer(dx, dy) {
             const newX = playerPosition.x + dx;
             const newY = playerPosition.y + dy;
             if (newX >= 0 && newX < mazeWidth && newY >= 0 && newY < mazeHeight && maze[newY][newX].classList.contains('path')) {
+                maze[playerPosition.y][playerPosition.x].style.backgroundImage = '';
                 maze[playerPosition.y][playerPosition.x].classList.remove('player');
                 playerPosition.x = newX;
                 playerPosition.y = newY;
+                maze[playerPosition.y][playerPosition.x].style.backgroundImage = 'url("face.png")';
+                maze[playerPosition.y][playerPosition.x].style.backgroundSize = 'cover';
                 maze[playerPosition.y][playerPosition.x].classList.add('player');
+                if (maze[newY][newX].classList.contains('eat')) {
+                    maze[playerPosition.y][playerPosition.x].classList.remove('player');
+                    maze[playerPosition.y][playerPosition.x].style.backgroundImage = '';
+                    playerPosition = { x: 0, y: 0 };
+                    maze[0][0].classList.add('player');
+                    maze[0][0].style.backgroundImage = 'url("face.png")';
+                    maze[0][0].style.backgroundSize = 'cover';
+                }
                 if (playerPosition.x === mazeWidth - 1 && playerPosition.y === mazeHeight - 1) {
-                    alert('WIN!');
+                    mazeWidth += 2;
+                    mazeHeight += 1;
+                    createMaze();
+                    initializeMaze();
                 }
             }
         }
@@ -204,13 +258,18 @@
             }
         });
 
-        levelButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                mazeWidth = parseInt(button.getAttribute('data-width'));
-                mazeHeight = parseInt(button.getAttribute('data-height'));
-                createMaze();
-                initializeMaze();
-            });
+        levelUpButton.addEventListener('click', () => {
+            mazeWidth += 2;
+            mazeHeight += 1;
+            createMaze();
+            initializeMaze();
+        });
+
+        levelDownButton.addEventListener('click', () => {
+            mazeWidth = Math.max(11, mazeWidth - 2);
+            mazeHeight = Math.max(11, mazeHeight - 1);
+            createMaze();
+            initializeMaze();
         });
 
         zoomInButton.addEventListener('click', () => {
